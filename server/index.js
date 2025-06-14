@@ -1,17 +1,41 @@
 import express from 'express';
 import cors from 'cors';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const JWT_SECRET = 'change-me';
 
 app.use(cors());
 app.use(express.json());
 
 const places = [
-  { id: 1, name: 'Sunny Beach', description: 'A nice beach.', price: 100, tags: ['beach'], rating: 4.5 },
-  { id: 2, name: 'Mountain Resort', description: 'Great for skiing.', price: 150, tags: ['ski'], rating: 4.7 }
+  {
+    id: 1,
+    name: 'Sunny Beach',
+    description: 'A nice beach.',
+    price: 100,
+    tags: ['beach'],
+    rating: 4.5,
+    climate: 'hot',
+    season: 'summer',
+    location: { lat: 42.7, lng: 27.7 }
+  },
+  {
+    id: 2,
+    name: 'Mountain Resort',
+    description: 'Great for skiing.',
+    price: 150,
+    tags: ['ski'],
+    rating: 4.7,
+    climate: 'cold',
+    season: 'winter',
+    location: { lat: 46.8, lng: 8.2 }
+  }
 ];
 const reviews = [];
+const users = [];
 
 app.get('/api/places', (req, res) => {
   let result = places;
@@ -20,6 +44,12 @@ app.get('/api/places', (req, res) => {
   }
   if (req.query.budget) {
     result = result.filter(p => p.price <= Number(req.query.budget));
+  }
+  if (req.query.climate) {
+    result = result.filter(p => p.climate === req.query.climate);
+  }
+  if (req.query.season) {
+    result = result.filter(p => p.season === req.query.season);
   }
   res.json(result);
 });
@@ -40,10 +70,42 @@ app.post('/api/reviews', (req, res) => {
   res.status(201).json(review);
 });
 
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password } = req.body;
+  if (users.find(u => u.email === email)) {
+    return res.status(400).json({ message: 'User exists' });
+  }
+  const hashed = await bcrypt.hash(password, 10);
+  const user = { id: users.length + 1, email, password: hashed, favorites: [] };
+  users.push(user);
+  const token = jwt.sign({ id: user.id }, JWT_SECRET);
+  res.status(201).json({ token });
+});
+
 app.post('/api/auth/login', (req, res) => {
-  const { email } = req.body;
-  // Dummy JWT token
-  res.json({ token: `fake-jwt-token-for-${email}` });
+  const { email, password } = req.body;
+  const user = users.find(u => u.email === email);
+  if (!user || !bcrypt.compareSync(password, user.password)) {
+    return res.status(401).json({ message: 'Invalid credentials' });
+  }
+  const token = jwt.sign({ id: user.id }, JWT_SECRET);
+  res.json({ token });
+});
+
+function authMiddleware(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).end();
+  try {
+    const { id } = jwt.verify(auth.split(' ')[1], JWT_SECRET);
+    req.user = users.find(u => u.id === id);
+    next();
+  } catch (e) {
+    res.status(401).end();
+  }
+}
+
+app.get('/api/user', authMiddleware, (req, res) => {
+  res.json({ id: req.user.id, email: req.user.email, favorites: req.user.favorites });
 });
 
 app.listen(PORT, () => {

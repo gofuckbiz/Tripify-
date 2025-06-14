@@ -1,29 +1,20 @@
-import { useEffect, useState } from 'react';
-
-interface Place {
-  id: number;
-  name: string;
-  description: string;
-}
+import { Routes, Route, Link, useSearchParams } from 'react-router-dom';
+import { useAppDispatch, useAppSelector } from './hooks';
+import { fetchPlaces } from './slices/placesSlice';
+import { useEffect } from 'react';
+import Home from './pages/Home';
+import PlaceDetails from './pages/PlaceDetails';
 
 export default function App() {
-  const [places, setPlaces] = useState<Place[]>([]);
-
-  useEffect(() => {
-    fetch('http://localhost:3001/api/places')
-      .then((res) => res.json())
-      .then(setPlaces)
-      .catch(console.error);
-  }, []);
-
   return (
-    <div>
-      <h1>Tripify Destinations</h1>
-      <ul>
-        {places.map((p) => (
-          <li key={p.id}>{p.name} - {p.description}</li>
-        ))}
-      </ul>
+    <div className="container mx-auto p-4">
+      <header className="mb-4 flex justify-between">
+        <Link to="/" className="text-2xl font-bold">Tripify</Link>
+      </header>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/places/:id" element={<PlaceDetails />} />
+      </Routes>
     </div>
   );
 }
